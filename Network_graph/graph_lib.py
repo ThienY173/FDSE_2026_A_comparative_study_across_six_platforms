@@ -27,11 +27,7 @@ RELATION_COLUMN_MAP = {
 
 
 def compute_relation_weights(train_attrs_df, label_col="popularity", w_min=0.5, w_max=2.0, seed=42):
-    """
-    Algorithm 1, step 1-2: data-driven, leakage-safe weight derivation.
-    CHỈ nhận attribute thô của TRAIN split (1 seed, 1 platform) -- không
-    hề nhìn vào test set hay vào feature importance của model nào khác.
-    """
+    
     df = train_attrs_df.copy()
     if "toxicity_score" in df.columns:
         df["toxic_bin"] = (df["toxicity_score"] / 10).round() * 10
@@ -196,11 +192,6 @@ def shap_summary(model, X_sample, max_display=15, save_path=None):
 
 
 def visualize_subgraph_sample(G, train_ids, sample_seed_node=None, n_hops=2, max_nodes=60, save_path=None, seed=42):
-    """
-    Lấy 1 cụm nhỏ quanh 1 node để kiểm tra trực quan: cạnh có nối đúng group
-    không, và (quan trọng nhất) node test (màu cam) có bao giờ nối trực tiếp
-    với node test khác không -- nếu có, đó là dấu hiệu leakage còn sót.
-    """
     rng = np.random.default_rng(seed)
     if sample_seed_node is None:
         candidates = [n for n in G.nodes() if G.degree(n) > 0]
@@ -224,19 +215,19 @@ def visualize_subgraph_sample(G, train_ids, sample_seed_node=None, n_hops=2, max
     node_colors = ["#4C9AFF" if nd in train_ids else "#FF8A65" for nd in sub_G.nodes()]
     edge_widths = [sub_G[u][v]["weight"] for u, v in sub_G.edges()]
 
-    # tự động cảnh báo nếu có cạnh test-test trong subsample này
+    
     test_test_edges = [(u, v) for u, v in sub_G.edges() if u not in train_ids and v not in train_ids]
     if test_test_edges:
-        print(f"  CẢNH BÁO: phát hiện {len(test_test_edges)} cạnh test-test: {test_test_edges}")
+        print(f"  Warning: exit {len(test_test_edges)} test-test edges: {test_test_edges}")
     else:
-        print("  OK: không có cạnh test-test trong subsample này.")
+        print("  OK: Do not maintain test-test in this subsample.")
 
     pos = nx.spring_layout(sub_G, seed=seed)
     plt.figure(figsize=(8, 6))
     nx.draw_networkx_nodes(sub_G, pos, node_color=node_colors, node_size=300)
     nx.draw_networkx_edges(sub_G, pos, width=edge_widths)
     nx.draw_networkx_labels(sub_G, pos, font_size=6)
-    plt.title(f"Subgraph around {sample_seed_node}  (xanh=train, cam=test)")
+    plt.title(f"Subgraph around {sample_seed_node}  (blue=train, orange=test)")
     plt.axis("off")
     if save_path:
         plt.savefig(save_path, dpi=120, bbox_inches="tight")
