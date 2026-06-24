@@ -1,0 +1,8 @@
+,accuracy,accuracy,precision,precision,recall,recall,f1,f1,roc_auc,roc_auc
+,mean,std,mean,std,mean,std,mean,std,mean,std
+variant,,,,,,,,,,
+data_driven_homophily,0.8253,0.0062,0.5492,0.011,0.7414,0.0154,0.631,0.012,0.8857,0.0035
+data_driven_homophily+node2vec64,0.8346,0.004,0.5699,0.01,0.731,0.0138,0.6404,0.0086,0.8858,0.0029
+no_graph,0.8188,0.0035,0.535,0.0106,0.766,0.0191,0.63,0.0128,0.8867,0.0035
+similarity_knn,0.8177,0.0027,0.5337,0.0079,0.7557,0.0143,0.6255,0.0071,0.8863,0.0031
+unweighted_homophily,0.8245,0.0072,0.5477,0.0161,0.742,0.0204,0.6301,0.0166,0.8859,0.0042
