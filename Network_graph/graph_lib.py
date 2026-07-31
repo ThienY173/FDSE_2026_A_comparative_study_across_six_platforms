@@ -8,7 +8,8 @@ from sklearn.neighbors import NearestNeighbors
 from xgboost import XGBClassifier
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
+    average_precision_score
 )
 
 UNWEIGHTED_TABLE = {
@@ -175,6 +176,44 @@ def evaluate_predictions(y_test, y_pred, y_prob):
         "recall": recall_score(y_test, y_pred),
         "f1": f1_score(y_test, y_pred),
         "roc_auc": roc_auc_score(y_test, y_prob),
+        # Stage 3 / feedback 2.2: PR-AUC is critical for imbalanced popularity labels,
+        # ROC-AUC alone can look stable while precision/recall move a lot.
+        "pr_auc": average_precision_score(y_test, y_prob),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Stage 2 (feedback 2.4): audited, reportable graph construction statistics.
+# Call this once per (platform, seed, variant) and log the output in the paper's
+# protocol table. train_test edge counts also double as an automated leakage
+# check: n_test_test must be 0 in a correctly-built transductive graph.
+# ---------------------------------------------------------------------------
+def compute_graph_statistics(G, train_ids, test_ids):
+    train_ids, test_ids = set(train_ids), set(test_ids)
+    n_nodes = G.number_of_nodes()
+    n_edges = G.number_of_edges()
+    degrees = [d for _, d in G.degree()]
+    max_possible_edges = n_nodes * (n_nodes - 1) / 2 if n_nodes > 1 else 1
+
+    n_train_train = n_train_test = n_test_test = 0
+    for u, v in G.edges():
+        u_train, v_train = u in train_ids, v in train_ids
+        if u_train and v_train:
+            n_train_train += 1
+        elif u_train != v_train:
+            n_train_test += 1
+        else:
+            n_test_test += 1
+
+    return {
+        "n_nodes": n_nodes,
+        "n_edges": n_edges,
+        "density": n_edges / max_possible_edges,
+        "avg_degree": float(np.mean(degrees)) if degrees else 0.0,
+        "max_degree": int(np.max(degrees)) if degrees else 0,
+        "n_train_train_edges": n_train_train,
+        "n_train_test_edges": n_train_test,
+        "n_test_test_edges": n_test_test,  # should always be 0; leakage flag otherwise
     }
 
 
@@ -257,4 +296,109 @@ def train_eval_variant(train_df, test_df, drop_cols=("post_id", "user_id", "popu
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
-    return evaluate_predictions(y_test, y_pred, y_prob), model, X_test
+    metrics = evaluate_predictions(y_test, y_pred, y_prob)
+    # y_test/y_pred returned so callers can do paired error-transition analysis
+    # (feedback 2.1/2.5) without retraining.
+    return metrics, model, X_test, y_test.reset_index(drop=True), pd.Series(y_pred, name="y_pred")
+
+
+# ---------------------------------------------------------------------------
+# Stage 3 (feedback 2.1 & 2.2): paired per-seed deltas vs. the no_graph baseline,
+# with an explicit classification instead of a single "graph wins" headline number.
+# ---------------------------------------------------------------------------
+def paired_delta_analysis(results_df, baseline_variant="no_graph",
+                           metrics=("f1", "pr_auc", "precision", "recall", "roc_auc"),
+                           trade_off_metric="f1", neg_eps=1e-3):
+    base = results_df[results_df["variant"] == baseline_variant].set_index("seed")
+    rows = []
+    for variant in results_df["variant"].unique():
+        if variant == baseline_variant:
+            continue
+        var_df = results_df[results_df["variant"] == variant].set_index("seed")
+        common_seeds = base.index.intersection(var_df.index)
+
+        row = {"platform": results_df["platform"].iloc[0], "variant": variant,
+               "n_seeds": len(common_seeds)}
+        for m in metrics:
+            delta = var_df.loc[common_seeds, m] - base.loc[common_seeds, m]
+            row[f"delta_{m}_mean"] = delta.mean()
+            row[f"delta_{m}_std"] = delta.std()
+            row[f"delta_{m}_n_positive"] = int((delta > 0).sum())
+
+        # Classification: positive utility / trade-off / negligible / negative,
+        # judged on the trade-off metric (default F1) plus the precision/recall split.
+        f1_mean = row[f"delta_{trade_off_metric}_mean"]
+        prec_mean = row.get("delta_precision_mean", np.nan)
+        rec_mean = row.get("delta_recall_mean", np.nan)
+        if abs(f1_mean) < neg_eps:
+            if prec_mean > neg_eps and rec_mean < -neg_eps:
+                row["classification"] = "precision_recall_trade_off"
+            else:
+                row["classification"] = "negligible_effect"
+        elif f1_mean > 0:
+            row["classification"] = "positive_utility"
+        else:
+            row["classification"] = "negative_effect"
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 (feedback 2.5): grouped SHAP, aggregated to metadata / centrality / node2vec.
+# ---------------------------------------------------------------------------
+def assign_feature_group(col):
+    if col.startswith("n2v_"):
+        return "node2vec"
+    if col in {"degree_centrality", "betweenness_centrality", "closeness_centrality",
+               "pagerank", "eigenvector_centrality", "modularity_class"}:
+        return "centrality"
+    return "metadata"
+
+
+def grouped_shap_summary(model, X_sample, max_samples=500, seed=42):
+    import shap
+    if len(X_sample) > max_samples:
+        X_sample = X_sample.sample(max_samples, random_state=seed)
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_sample)
+    mean_abs = np.abs(shap_values).mean(axis=0)
+
+    contrib = pd.DataFrame({"feature": X_sample.columns, "mean_abs_shap": mean_abs})
+    contrib["group"] = contrib["feature"].map(assign_feature_group)
+    group_summary = contrib.groupby("group")["mean_abs_shap"].sum().reset_index()
+    total = group_summary["mean_abs_shap"].sum()
+    group_summary["share"] = group_summary["mean_abs_shap"] / total if total > 0 else 0.0
+    return group_summary.sort_values("share", ascending=False), contrib, shap_values
+
+
+# ---------------------------------------------------------------------------
+# Stage 5 (feedback 2.5): targeted ablation. Drop one feature group at a time
+# from an already-merged (metadata + centrality + node2vec) frame and compare.
+# ---------------------------------------------------------------------------
+def ablate_feature_group(train_df, test_df, group_to_remove, seed=42):
+    cols_to_drop = [c for c in train_df.columns if assign_feature_group(c) == group_to_remove]
+    tr = train_df.drop(columns=cols_to_drop)
+    te = test_df.drop(columns=[c for c in cols_to_drop if c in test_df.columns])
+    return train_eval_variant(tr, te, seed=seed)
+
+
+# ---------------------------------------------------------------------------
+# Stage 5 (feedback 2.5): error-transition analysis between a baseline model's
+# predictions and a graph-augmented model's predictions on the same test rows.
+# ---------------------------------------------------------------------------
+def error_transition_analysis(y_true, y_pred_baseline, y_pred_graph):
+    y_true = pd.Series(y_true).reset_index(drop=True)
+    y_pred_baseline = pd.Series(y_pred_baseline).reset_index(drop=True)
+    y_pred_graph = pd.Series(y_pred_graph).reset_index(drop=True)
+
+    fp_to_tn = int(((y_pred_baseline == 1) & (y_true == 0) & (y_pred_graph == 0)).sum())
+    tp_to_fn = int(((y_pred_baseline == 1) & (y_true == 1) & (y_pred_graph == 0)).sum())
+    fn_to_tp = int(((y_pred_baseline == 0) & (y_true == 1) & (y_pred_graph == 1)).sum())
+    tn_to_fp = int(((y_pred_baseline == 0) & (y_true == 0) & (y_pred_graph == 1)).sum())
+
+    return {
+        "fp_to_tn_corrected_false_positives": fp_to_tn,
+        "tp_to_fn_lost_true_positives": tp_to_fn,
+        "fn_to_tp_recovered_positives": fn_to_tp,
+        "tn_to_fp_new_errors": tn_to_fp,
+    }

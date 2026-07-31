@@ -1,0 +1,4 @@
+platform,seed,group,mean_abs_shap,share
+Tiktok,42,metadata,1.8215493,0.4301649
+Tiktok,42,node2vec,1.6474702,0.38905558
+Tiktok,42,centrality,0.7655178,0.18077956

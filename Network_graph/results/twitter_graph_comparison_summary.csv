@@ -1,8 +1,8 @@
-,accuracy,accuracy,precision,precision,recall,recall,f1,f1,roc_auc,roc_auc
-,mean,std,mean,std,mean,std,mean,std,mean,std
-variant,,,,,,,,,,
-data_driven_homophily,0.8063,0.0028,0.5122,0.0046,0.7862,0.005,0.6203,0.003,0.8858,0.0019
-data_driven_homophily+node2vec64,0.808,0.0047,0.5151,0.008,0.7831,0.0059,0.6214,0.0069,0.8865,0.0024
-no_graph,0.8018,0.004,0.5047,0.0063,0.8069,0.0055,0.621,0.0049,0.8887,0.0026
-similarity_knn,0.8089,0.0034,0.5166,0.0058,0.7878,0.0107,0.6239,0.0056,0.8886,0.0027
-unweighted_homophily,0.8056,0.0037,0.5109,0.006,0.7951,0.0058,0.622,0.0047,0.8875,0.0026
+,accuracy,accuracy,precision,precision,recall,recall,f1,f1,pr_auc,pr_auc,roc_auc,roc_auc
+,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std
+variant,,,,,,,,,,,,
+data_driven_homophily,0.8059,0.0041,0.5115,0.0068,0.786,0.0056,0.6197,0.006,0.6822,0.0094,0.8858,0.0023
+data_driven_homophily+node2vec64,0.8088,0.0018,0.5163,0.003,0.7882,0.0051,0.6239,0.0026,0.6849,0.0077,0.8867,0.0022
+no_graph,0.8018,0.004,0.5047,0.0063,0.8069,0.0055,0.621,0.0049,0.6888,0.0083,0.8887,0.0026
+similarity_knn,0.8087,0.0024,0.5162,0.0042,0.7874,0.0137,0.6235,0.0041,0.6894,0.0084,0.8885,0.0026
+unweighted_homophily,0.8054,0.0029,0.5106,0.0047,0.7939,0.0075,0.6215,0.0043,0.6856,0.0095,0.8873,0.0028

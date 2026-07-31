@@ -1,0 +1,4 @@
+platform,seed,group,mean_abs_shap,share
+Twitter,7,metadata,1.9046054,0.5486829
+Twitter,7,node2vec,0.9768668,0.28141794
+Twitter,7,centrality,0.58975923,0.16989914

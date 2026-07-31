@@ -1,0 +1,4 @@
+platform,seed,group,mean_abs_shap,share
+Reddit,99,metadata,1.4737291,0.50384325
+Reddit,99,node2vec,0.9939373,0.3398105
+Reddit,99,centrality,0.45730895,0.15634626

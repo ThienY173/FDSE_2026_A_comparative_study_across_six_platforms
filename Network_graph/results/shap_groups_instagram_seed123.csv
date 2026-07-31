@@ -1,0 +1,4 @@
+platform,seed,group,mean_abs_shap,share
+Instagram,123,metadata,1.717853,0.50388837
+Instagram,123,node2vec,1.1806926,0.34632605
+Instagram,123,centrality,0.5106481,0.1497856

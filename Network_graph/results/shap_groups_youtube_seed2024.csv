@@ -1,0 +1,4 @@
+platform,seed,group,mean_abs_shap,share
+Youtube,2024,metadata,1.9913187,0.48531747
+Youtube,2024,node2vec,1.4140211,0.34462044
+Youtube,2024,centrality,0.69778645,0.17006215
