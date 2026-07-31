@@ -1,0 +1,4 @@
+platform,seed,group,mean_abs_shap,share
+Facebook,7,node2vec,2.0989645,0.5113942
+Facebook,7,metadata,1.4396819,0.3507658
+Facebook,7,centrality,0.56574994,0.13783999

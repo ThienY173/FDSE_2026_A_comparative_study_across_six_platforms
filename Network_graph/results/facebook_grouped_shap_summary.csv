@@ -1,0 +1,4 @@
+group,mean,std
+centrality,0.1372,0.0152
+metadata,0.3552,0.0147
+node2vec,0.5076,0.0171
