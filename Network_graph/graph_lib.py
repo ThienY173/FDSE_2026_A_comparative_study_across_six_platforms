@@ -183,7 +183,7 @@ def evaluate_predictions(y_test, y_pred, y_prob):
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 (feedback 2.4): audited, reportable graph construction statistics.
+# Stage 2: audited, reportable graph construction statistics.
 # Call this once per (platform, seed, variant) and log the output in the paper's
 # protocol table. train_test edge counts also double as an automated leakage
 # check: n_test_test must be 0 in a correctly-built transductive graph.
@@ -303,7 +303,7 @@ def train_eval_variant(train_df, test_df, drop_cols=("post_id", "user_id", "popu
 
 
 # ---------------------------------------------------------------------------
-# Stage 3 (feedback 2.1 & 2.2): paired per-seed deltas vs. the no_graph baseline,
+# Stage 3: paired per-seed deltas vs. the no_graph baseline,
 # with an explicit classification instead of a single "graph wins" headline number.
 # ---------------------------------------------------------------------------
 def paired_delta_analysis(results_df, baseline_variant="no_graph",
@@ -344,7 +344,7 @@ def paired_delta_analysis(results_df, baseline_variant="no_graph",
 
 
 # ---------------------------------------------------------------------------
-# Stage 4 (feedback 2.5): grouped SHAP, aggregated to metadata / centrality / node2vec.
+# Stage 4: grouped SHAP, aggregated to metadata / centrality / node2vec.
 # ---------------------------------------------------------------------------
 def assign_feature_group(col):
     if col.startswith("n2v_"):
@@ -372,7 +372,7 @@ def grouped_shap_summary(model, X_sample, max_samples=500, seed=42):
 
 
 # ---------------------------------------------------------------------------
-# Stage 5 (feedback 2.5): targeted ablation. Drop one feature group at a time
+# Stage 5: targeted ablation. Drop one feature group at a time
 # from an already-merged (metadata + centrality + node2vec) frame and compare.
 # ---------------------------------------------------------------------------
 def ablate_feature_group(train_df, test_df, group_to_remove, seed=42):
@@ -383,7 +383,7 @@ def ablate_feature_group(train_df, test_df, group_to_remove, seed=42):
 
 
 # ---------------------------------------------------------------------------
-# Stage 5 (feedback 2.5): error-transition analysis between a baseline model's
+# Stage 5: error-transition analysis between a baseline model's
 # predictions and a graph-augmented model's predictions on the same test rows.
 # ---------------------------------------------------------------------------
 def error_transition_analysis(y_true, y_pred_baseline, y_pred_graph):
