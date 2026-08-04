@@ -402,3 +402,79 @@ def error_transition_analysis(y_true, y_pred_baseline, y_pred_graph):
         "fn_to_tp_recovered_positives": fn_to_tp,
         "tn_to_fp_new_errors": tn_to_fp,
     }
+
+
+def tuned_threshold_baseline(train_df, test_df,
+                             drop_cols=("post_id", "user_id", "popularity"),
+                             seed=42, grid=None):
+    # Tiền xử lý sao chép nguyên văn train_eval_variant để model khớp từng bit
+    drop_cols = [c for c in drop_cols if c in train_df.columns]
+    X_train = train_df.drop(columns=drop_cols).fillna(0)
+    y_train = train_df["popularity"]
+    X_test = test_df.drop(columns=[c for c in drop_cols if c in test_df.columns])
+    X_test = X_test.reindex(columns=X_train.columns, fill_value=0).fillna(0)
+    y_test = test_df["popularity"]
+
+    neg, pos = y_train.value_counts()[0], y_train.value_counts()[1]
+    model = XGBClassifier(
+        objective="binary:logistic", eval_metric="logloss",
+        scale_pos_weight=neg / pos, n_estimators=500, learning_rate=0.02,
+        max_depth=6, min_child_weight=1, gamma=0.1,
+        subsample=0.8, colsample_bytree=0.5, random_state=seed, n_jobs=-1
+    )
+    model.fit(X_train, y_train)
+
+    p_train = model.predict_proba(X_train)[:, 1]
+    p_test = model.predict_proba(X_test)[:, 1]
+
+    if grid is None:
+        grid = np.linspace(0.05, 0.95, 181)
+    best_t, best_f1 = 0.5, -1.0
+    for t in grid:
+        f1 = f1_score(y_train, (p_train >= t).astype(int), zero_division=0)
+        if f1 > best_f1:
+            best_t, best_f1 = float(t), float(f1)
+
+    y_pred = (p_test >= best_t).astype(int)
+    metrics = evaluate_predictions(y_test, y_pred, p_test)
+    metrics["threshold"] = best_t
+    return metrics, pd.Series(y_pred, name="y_pred")
+
+
+
+def permutation_corrected_mi(train_attrs_df, label_col="popularity",
+                             n_perm=30, seed=42):
+    df = train_attrs_df.copy()
+    if "toxicity_score" in df.columns:
+        df["toxic_bin"] = (df["toxicity_score"] / 10).round() * 10
+
+    rng = np.random.default_rng(seed)
+    rows = []
+    for relation, col in RELATION_COLUMN_MAP.items():
+        if col not in df.columns:
+            continue
+        sub = df[[col, label_col]].dropna()
+        if sub[col].nunique() < 2:
+            rows.append({"relation": relation, "n_unique": sub[col].nunique(),
+                         "mi_raw": 0.0, "mi_null": 0.0, "mi_corrected": 0.0})
+            continue
+
+        x_enc = LabelEncoder().fit_transform(sub[col].astype(str)).reshape(-1, 1)
+        y = sub[label_col].values
+
+        raw = mutual_info_classif(x_enc, y, discrete_features=True,
+                                  random_state=seed)[0]
+        null = np.mean([
+            mutual_info_classif(x_enc, rng.permutation(y),
+                                discrete_features=True, random_state=seed)[0]
+            for _ in range(n_perm)
+        ])
+        rows.append({
+            "relation": relation,
+            "n_unique": int(sub[col].nunique()),
+            "cardinality_ratio": sub[col].nunique() / len(sub),
+            "mi_raw": float(raw),
+            "mi_null": float(null),
+            "mi_corrected": float(raw - null),
+        })
+    return pd.DataFrame(rows)
